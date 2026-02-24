@@ -3,69 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IA Résumé Local (Sans Clé)</title>
+    <title>IA Résumeur Local</title>
     <style>
-        body { font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
-        h1 { color: #2c3e50; font-size: 20px; text-align: center; }
-        textarea { width: 100%; height: 150px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; background: #27ae60; color: white; border: none; padding: 12px; margin-top: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #95a5a6; }
-        #status { font-size: 12px; color: #7f8c8d; margin-top: 10px; text-align: center; }
-        #output { margin-top: 20px; padding: 15px; background: #ecf0f1; border-radius: 8px; display: none; line-height: 1.5; }
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+        textarea { width: 100%; height: 150px; border: 1px solid #ccc; border-radius: 5px; padding: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #status { margin-top: 10px; font-size: 13px; color: #555; text-align: center; border: 1px dashed #ccc; padding: 5px; }
+        #result { margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px; display: none; line-height: 1.5; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h1>🤖 Résumeur IA Sans Clé</h1>
-    <p style="font-size: 13px; color: #666;">Note : Le premier chargement peut prendre 30 secondes car l'IA se télécharge dans votre navigateur.</p>
+<div class="container">
+    <h1>🤖 Résumeur IA (Sans Clé)</h1>
+    <p style="font-size: 12px;">Appuyez sur "Initialiser" pour charger l'IA dans votre navigateur.</p>
     
     <textarea id="inputText" placeholder="Collez votre texte ici..."></textarea>
-    <button id="summarizeBtn">Résumer le texte</button>
     
-    <div id="status">Chargement du moteur d'IA...</div>
-    <div id="output"></div>
+    <button id="loadBtn">1. Initialiser l'IA</button>
+    <button id="runBtn" disabled>2. Résumer le texte</button>
+    
+    <div id="status">Statut : En attente...</div>
+    <div id="result"></div>
 </div>
 
 <script type="module">
-    // Importation de la bibliothèque d'IA sans clé
+    // On importe la bibliothèque depuis un lien CDN stable
     import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1';
 
-    const btn = document.getElementById('summarizeBtn');
+    const loadBtn = document.getElementById('loadBtn');
+    const runBtn = document.getElementById('runBtn');
     const status = document.getElementById('status');
-    const output = document.getElementById('output');
     const input = document.getElementById('inputText');
+    const resultDiv = document.getElementById('result');
 
-    let summarizer;
+    let summarizer = null;
 
-    // Initialisation de l'IA au chargement de la page
-    async function init() {
+    // Étape 1 : Charger l'IA
+    loadBtn.onclick = async () => {
         try {
-            status.innerText = "Téléchargement de l'IA (une seule fois)...";
+            loadBtn.disabled = true;
+            status.innerText = "⏳ Téléchargement de l'IA... (Patientez environ 30s)";
+            
+            // On utilise un modèle très léger pour éviter que ça plante
             summarizer = await pipeline('summarization', 'Xenova/distilbart-cnn-6-6');
-            status.innerText = "IA prête ! ✅";
-            btn.disabled = false;
-        } catch (e) {
-            status.innerText = "Erreur de chargement. Vérifiez votre connexion.";
+            
+            status.innerText = "✅ IA prête ! Vous pouvez résumer.";
+            runBtn.disabled = false;
+            loadBtn.style.display = "none";
+        } catch (err) {
+            status.innerText = "❌ Erreur de chargement : " + err.message;
+            loadBtn.disabled = false;
         }
-    }
-    init();
+    };
 
-    btn.onclick = async () => {
-        if (!input.value) return;
+    // Étape 2 : Faire le résumé
+    runBtn.onclick = async () => {
+        if (!input.value) return alert("Collez un texte !");
         
-        btn.disabled = true;
-        status.innerText = "Résumé en cours... (calculé par votre ordinateur)";
-        
-        const result = await summarizer(input.value, {
-            max_new_tokens: 100
-        });
+        try {
+            runBtn.disabled = true;
+            status.innerText = "🧠 L'IA réfléchit... (Calcul local)";
+            
+            const output = await summarizer(input.value, {
+                max_new_tokens: 100,
+                chunk_length: 512,
+            });
 
-        output.innerText = result[0].summary_text;
-        output.style.display = "block";
-        status.innerText = "Terminé !";
-        btn.disabled = false;
+            resultDiv.innerText = output[0].summary_text;
+            resultDiv.style.display = "block";
+            status.innerText = "✨ Terminé !";
+        } catch (err) {
+            status.innerText = "❌ Erreur pendant le résumé.";
+        } finally {
+            runBtn.disabled = false;
+        }
     };
 </script>
 
